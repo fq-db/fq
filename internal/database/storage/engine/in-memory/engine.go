@@ -761,7 +761,7 @@ func (e *Engine) applyFixedWindowEventFromLog(log *wal.LogData) {
 		return
 	}
 
-	limit, err := strconv.ParseUint(log.Arguments[1], 10, 31)
+	limit, err := strconv.ParseUint(log.Arguments[1], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "RLIMIT_FW").Msg("failed to parse limit")
 		return
@@ -795,12 +795,12 @@ func (e *Engine) applyQuotaAcquireFromLog(log *wal.LogData) {
 		return
 	}
 
-	limit, err := strconv.ParseUint(log.Arguments[1], 10, 31)
+	limit, err := strconv.ParseUint(log.Arguments[1], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "QUOTA_ACQ").Msg("failed to parse limit")
 		return
 	}
-	amount, err := strconv.ParseUint(log.Arguments[2], 10, 31)
+	amount, err := strconv.ParseUint(log.Arguments[2], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "QUOTA_ACQ").Msg("failed to parse amount")
 		return
@@ -879,7 +879,7 @@ func (e *Engine) applyQuotaSetFromLog(log *wal.LogData) {
 		return
 	}
 
-	limit, err := strconv.ParseUint(log.Arguments[1], 10, 31)
+	limit, err := strconv.ParseUint(log.Arguments[1], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "QUOTA_SET").Msg("failed to parse limit")
 		return
@@ -1016,7 +1016,7 @@ func (e *Engine) applyIncrByFromLog(log *wal.LogData) {
 		return
 	}
 
-	delta, err := strconv.ParseUint(log.Arguments[3], 10, 31)
+	delta, err := strconv.ParseUint(log.Arguments[3], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "INCRBY").Msg("failed to parse delta")
 
@@ -1062,7 +1062,7 @@ func (e *Engine) applySlidingWindowEventFromLog(log *wal.LogData) {
 	var currTimeArg string
 	if limitFromLog {
 		var parseErr error
-		limit, parseErr = strconv.ParseUint(log.Arguments[1], 10, 31)
+		limit, parseErr = strconv.ParseUint(log.Arguments[1], 10, 63)
 		if parseErr != nil {
 			e.logger.Error().Err(parseErr).Uint64("lsn", log.LSN).Str("command", "RLIMIT_SW").Msg("failed to parse limit")
 			return
@@ -1110,13 +1110,13 @@ func (e *Engine) applyTokenBucketEventFromLog(log *wal.LogData) {
 		return
 	}
 
-	capacity, err := strconv.ParseUint(log.Arguments[1], 10, 31)
+	capacity, err := strconv.ParseUint(log.Arguments[1], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "RLIMIT_TB").Msg("failed to parse capacity")
 		return
 	}
 
-	refillAmount, err := strconv.ParseUint(log.Arguments[2], 10, 31)
+	refillAmount, err := strconv.ParseUint(log.Arguments[2], 10, 63)
 	if err != nil {
 		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "RLIMIT_TB").Msg("failed to parse refill amount")
 		return
