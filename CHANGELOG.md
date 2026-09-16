@@ -5,7 +5,7 @@ All notable changes to fq will be documented in this file.
 This project follows semantic versioning while it is pre-1.0: minor releases may
 change behavior, and patch releases are reserved for compatible fixes.
 
-## [Unreleased]
+## [v0.11.0]
 
 ### Added
 
