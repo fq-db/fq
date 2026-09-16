@@ -16,6 +16,7 @@ import (
 
 type Engine interface {
 	Incr(database.TxContext, database.BatchKey, func() error) (database.ValueType, error)
+	IncrBy(database.TxContext, database.BatchKey, database.ValueType, func() error) (database.ValueType, error)
 	RLimitFixedWindow(
 		database.TxContext,
 		database.BatchKey,
@@ -62,6 +63,13 @@ type WAL interface {
 	Shutdown()
 	Incr(ctx context.Context, txCtx database.TxContext, key database.BatchKey) tools.FutureError
 	IncrAsync(ctx context.Context, txCtx database.TxContext, key database.BatchKey)
+	IncrBy(
+		ctx context.Context,
+		txCtx database.TxContext,
+		key database.BatchKey,
+		delta database.ValueType,
+	) tools.FutureError
+	IncrByAsync(ctx context.Context, txCtx database.TxContext, key database.BatchKey, delta database.ValueType)
 	Del(ctx context.Context, txCtx database.TxContext, key database.BatchKey) tools.FutureError
 	DelAsync(ctx context.Context, txCtx database.TxContext, key database.BatchKey)
 	MDel(ctx context.Context, txCtx database.TxContext, keys []database.BatchKey) tools.FutureError
@@ -314,6 +322,21 @@ func (s *Storage) Incr(ctx context.Context, key database.BatchKey) (database.Val
 
 	return s.engine.Incr(txCtx, key, func() error {
 		return s.writeIncrWAL(ctx, txCtx, key)
+	})
+}
+
+func (s *Storage) IncrBy(
+	ctx context.Context,
+	key database.BatchKey,
+	delta database.ValueType,
+) (database.ValueType, error) {
+	s.mutationMu.RLock()
+	defer s.mutationMu.RUnlock()
+
+	txCtx := s.makeTxContext()
+
+	return s.engine.IncrBy(txCtx, key, delta, func() error {
+		return s.writeIncrByWAL(ctx, txCtx, key, delta)
 	})
 }
 
@@ -662,6 +685,27 @@ func (s *Storage) writeIncrWAL(ctx context.Context, txCtx database.TxContext, ke
 	}
 
 	s.wal.IncrAsync(ctx, txCtx, key)
+
+	return nil
+}
+
+func (s *Storage) writeIncrByWAL(
+	ctx context.Context,
+	txCtx database.TxContext,
+	key database.BatchKey,
+	delta database.ValueType,
+) error {
+	if s.wal == nil {
+		return nil
+	}
+
+	if s.syncCommit {
+		future := s.wal.IncrBy(ctx, txCtx, key, delta)
+
+		return future.Get()
+	}
+
+	s.wal.IncrByAsync(ctx, txCtx, key, delta)
 
 	return nil
 }

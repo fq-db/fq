@@ -15,9 +15,12 @@ import (
 type stubStorage struct{}
 
 func (stubStorage) Incr(context.Context, BatchKey) (ValueType, error) { return 1, nil }
-func (stubStorage) Get(context.Context, BatchKey) (ValueType, error)  { return 1, nil }
-func (stubStorage) Del(context.Context, BatchKey) (bool, error)       { return true, nil }
-func (stubStorage) MDel(context.Context, []BatchKey) ([]bool, error)  { return []bool{true}, nil }
+func (stubStorage) IncrBy(_ context.Context, _ BatchKey, delta ValueType) (ValueType, error) {
+	return delta, nil
+}
+func (stubStorage) Get(context.Context, BatchKey) (ValueType, error) { return 1, nil }
+func (stubStorage) Del(context.Context, BatchKey) (bool, error)      { return true, nil }
+func (stubStorage) MDel(context.Context, []BatchKey) ([]bool, error) { return []bool{true}, nil }
 func (stubStorage) Watch(context.Context, BatchKey) (ValueType, error) {
 	return 1, nil
 }
@@ -227,6 +230,7 @@ func TestCommandRoleMatrix(t *testing.T) {
 		compute.ScanCommandID:     security.RoleRO,
 		compute.InspectCommandID:  security.RoleAdmin,
 		compute.IncrCommandID:     security.RoleRW,
+		compute.IncrByCommandID:   security.RoleRW,
 		compute.MDelCommandID:     security.RoleRW,
 		compute.FlushDBCommandID:  security.RoleAdmin,
 		compute.TruncateCommandID: security.RoleAdmin,

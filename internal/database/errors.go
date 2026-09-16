@@ -26,4 +26,6 @@ var (
 		protocol.CodeScanIndexDisabled, "scan index is disabled")
 	ErrReadOnlyReplica = protocol.NewError(
 		protocol.CodeReadOnlyReplica, "instance is a read-only replica")
+	ErrValueOverflow = protocol.NewError(
+		protocol.CodeValueOverflow, "counter value overflow")
 )

@@ -21,6 +21,7 @@ const (
 	CodeInvalidRLimitAlgo  Code = 2006
 	CodeInvalidScanCount   Code = 2007
 	CodeInvalidScanCursor  Code = 2008
+	CodeValueOverflow      Code = 2009
 
 	CodeNotAuthenticated     Code = 3000
 	CodePermissionDenied     Code = 3001
@@ -71,6 +72,7 @@ var codes = []CodeInfo{
 	{CodeInvalidRLimitAlgo, "CodeInvalidRLimitAlgo", "invalid rate limit algorithm"},
 	{CodeInvalidScanCount, "CodeInvalidScanCount", "invalid scan count"},
 	{CodeInvalidScanCursor, "CodeInvalidScanCursor", "invalid scan cursor"},
+	{CodeValueOverflow, "CodeValueOverflow", "counter value overflow"},
 	{CodeNotAuthenticated, "CodeNotAuthenticated", "not authenticated"},
 	{CodePermissionDenied, "CodePermissionDenied", "permission denied"},
 	{CodeAuthenticationFailed, "CodeAuthenticationFailed", "authentication failed"},

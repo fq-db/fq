@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -30,6 +31,14 @@ func NewFqElem(batchSize uint32) *FqElem {
 }
 
 func (e *FqElem) Incr(txCtx database.TxContext, beforeApply func() error) (database.ValueType, error) {
+	return e.IncrBy(txCtx, 1, beforeApply)
+}
+
+func (e *FqElem) IncrBy(
+	txCtx database.TxContext,
+	delta database.ValueType,
+	beforeApply func() error,
+) (database.ValueType, error) {
 	batchStartsAt := startOfBatch(txCtx.CurrTime, e.batchSize)
 
 	e.mu.Lock()
@@ -39,13 +48,16 @@ func (e *FqElem) Incr(txCtx database.TxContext, beforeApply func() error) (datab
 	if e.lastTxAt < batchStartsAt {
 		value = 0
 	}
+	if int64(value)+int64(delta) > math.MaxInt32 {
+		return 0, database.ErrValueOverflow
+	}
 	if beforeApply != nil {
 		if err := beforeApply(); err != nil {
 			return 0, fmt.Errorf("before apply increment: %w", err)
 		}
 	}
 
-	return e.applyIncrementLocked(txCtx, value), nil
+	return e.applyIncrementLocked(txCtx, value, delta), nil
 }
 
 func (e *FqElem) RLimitFixedWindow(
@@ -83,7 +95,7 @@ func (e *FqElem) RLimitFixedWindow(
 		}
 	}
 
-	current := e.applyIncrementLocked(txCtx, value)
+	current := e.applyIncrementLocked(txCtx, value, 1)
 	remaining := limit - current
 	if remaining < 0 {
 		remaining = 0
@@ -98,10 +110,13 @@ func (e *FqElem) RLimitFixedWindow(
 	}, nil
 }
 
-func (e *FqElem) applyIncrementLocked(txCtx database.TxContext, value database.ValueType) database.ValueType {
+func (e *FqElem) applyIncrementLocked(
+	txCtx database.TxContext,
+	value, delta database.ValueType,
+) database.ValueType {
 	if e.dumpVer != txCtx.DumpTx {
 		if txCtx.Tx == txCtx.DumpTx {
-			e.dumpValue = value + 1
+			e.dumpValue = value + delta
 			e.dumpVer = txCtx.Tx
 			e.dumpLastTxAt = txCtx.CurrTime
 		} else {
@@ -111,7 +126,7 @@ func (e *FqElem) applyIncrementLocked(txCtx database.TxContext, value database.V
 		}
 	}
 
-	e.value = value + 1
+	e.value = value + delta
 	e.ver = txCtx.Tx
 	e.lastTxAt = txCtx.CurrTime
 

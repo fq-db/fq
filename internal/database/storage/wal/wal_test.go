@@ -578,3 +578,25 @@ func requireClosed(t *testing.T, ch <-chan struct{}) {
 		t.Fatal("channel was not closed")
 	}
 }
+
+func TestWALIncrByWritesDelta(t *testing.T) {
+	writer := &recordingFSWriter{}
+	logger := zerolog.Nop()
+	wal := NewWAL(writer, nil, nil, time.Hour, 10, 10, "", &logger)
+	wal.Start()
+
+	future := wal.IncrBy(context.Background(), testTxContext(1), testBatchKey("key"), 7)
+	wal.IncrByAsync(context.Background(), testTxContext(2), testBatchKey("key"), 9)
+
+	wal.Shutdown()
+
+	requireFutureError(t, future, nil)
+
+	logs := writer.Logs()
+	require.Len(t, logs, 2)
+	for _, log := range logs {
+		require.Equal(t, uint32(compute.IncrByCommandID), log.CommandId)
+	}
+	require.Equal(t, []string{"key", "1", "1", "7"}, logs[0].Arguments)
+	require.Equal(t, []string{"key", "1", "1", "9"}, logs[1].Arguments)
+}

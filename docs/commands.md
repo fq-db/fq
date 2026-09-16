@@ -292,6 +292,7 @@ is not a wire command — the server only ever sees `INSPECT`.
 
 ```text
 INCR <key> <window>
+INCRBY <key> <window> <value>
 GET <key> <window>
 DEL <key> <window>
 MDEL <key> <window> <key> <window> ...
@@ -318,6 +319,9 @@ AUTH <token>
 ```
 
 - `INCR`: increments the counter for a key inside a time window
+- `INCRBY`: adds `<value>` to the counter for a key inside a time window; `<value>` is an
+  integer between 1 and 2147483647. The counter is capped at 2147483647 — a request that
+  would push it past that limit answers `err|2009` and leaves the counter untouched
 - `GET`: returns the current counter value
 - `DEL`: deletes counter and limiter state for the key/window pair
 - `MDEL`: deletes multiple key/window pairs

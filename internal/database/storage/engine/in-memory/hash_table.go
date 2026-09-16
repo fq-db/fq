@@ -74,10 +74,19 @@ func (s *HashTable) Incr(
 	key database.BatchKey,
 	beforeApply func() error,
 ) (database.ValueType, error) {
+	return s.IncrBy(txCtx, key, 1, beforeApply)
+}
+
+func (s *HashTable) IncrBy(
+	txCtx database.TxContext,
+	key database.BatchKey,
+	delta database.ValueType,
+	beforeApply func() error,
+) (database.ValueType, error) {
 	htKey := hashTableKey{key: key.Key, batchSize: key.BatchSize}
 	v := s.getOrInitElem(htKey)
 
-	return v.Incr(txCtx, beforeApply)
+	return v.IncrBy(txCtx, delta, beforeApply)
 }
 
 func (s *HashTable) RLimitFixedWindow(

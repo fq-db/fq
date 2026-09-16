@@ -295,6 +295,18 @@ func (w *recordingWAL) IncrAsync(context.Context, database.TxContext, database.B
 	w.record("IncrAsync")
 }
 
+func (w *recordingWAL) IncrBy(
+	context.Context, database.TxContext, database.BatchKey, database.ValueType,
+) tools.FutureError {
+	w.record("IncrBy")
+
+	return okFuture()
+}
+
+func (w *recordingWAL) IncrByAsync(context.Context, database.TxContext, database.BatchKey, database.ValueType) {
+	w.record("IncrByAsync")
+}
+
 func (w *recordingWAL) Del(context.Context, database.TxContext, database.BatchKey) tools.FutureError {
 	w.record("Del")
 
@@ -528,6 +540,8 @@ func TestWriteWALSyncCommitUsesSynchronousCalls(t *testing.T) {
 
 	_, err := strg.Incr(ctx, key)
 	require.NoError(t, err)
+	_, err = strg.IncrBy(ctx, key, 5)
+	require.NoError(t, err)
 	_, err = strg.Del(ctx, key)
 	require.NoError(t, err)
 	_, err = strg.MDel(ctx, []database.BatchKey{key})
@@ -548,7 +562,7 @@ func TestWriteWALSyncCommitUsesSynchronousCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{
-		"Incr", "Del", "MDel", "RLimitFixedWindow", "RLimitSlidingWindow",
+		"Incr", "IncrBy", "Del", "MDel", "RLimitFixedWindow", "RLimitSlidingWindow",
 		"RLimitTokenBucket", "QuotaSet", "QuotaAcquire", "QuotaRelease", "QuotaDelete",
 	}, wal.calls)
 }
@@ -561,6 +575,8 @@ func TestWriteWALAsyncCommitUsesAsynchronousCalls(t *testing.T) {
 
 	_, err := strg.Incr(ctx, key)
 	require.NoError(t, err)
+	_, err = strg.IncrBy(ctx, key, 5)
+	require.NoError(t, err)
 	_, err = strg.Del(ctx, key)
 	require.NoError(t, err)
 	_, err = strg.MDel(ctx, []database.BatchKey{key})
@@ -581,7 +597,7 @@ func TestWriteWALAsyncCommitUsesAsynchronousCalls(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, []string{
-		"IncrAsync", "DelAsync", "MDelAsync", "RLimitFixedWindowAsync", "RLimitSlidingWindowAsync",
+		"IncrAsync", "IncrByAsync", "DelAsync", "MDelAsync", "RLimitFixedWindowAsync", "RLimitSlidingWindowAsync",
 		"RLimitTokenBucketAsync", "QuotaSetAsync", "QuotaAcquireAsync", "QuotaReleaseAsync", "QuotaDeleteAsync",
 	}, wal.calls)
 }

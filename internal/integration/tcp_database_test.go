@@ -43,6 +43,16 @@ func TestTCPDatabaseCommandsEndToEnd(t *testing.T) {
 	app.RequireQuery("INCR key 60", "ok|2")
 	app.RequireQuery("GET key 60", "ok|2")
 	app.RequireQuery("INCR other 60", "ok|1")
+	app.RequireQuery("INCRBY key 60 5", "ok|7")
+	app.RequireQuery("GET key 60", "ok|7")
+	app.RequireQuery("INCRBY fresh 60 3", "ok|3")
+	app.RequireQuery("INCRBY fresh 60 0", "err|2005|invalid limit: 0 (must be between 1 and 2147483647)")
+	app.RequireQuery("INCRBY fresh 60 abc", "err|2004|limit is not a number")
+	app.RequireQuery("INCRBY fresh 60", "err|1002|invalid arguments")
+	app.RequireQuery("GET fresh 60", "ok|3")
+	app.RequireQuery("MDEL fresh 60", "ok|1")
+	app.RequireQuery("INCRBY key 60 2147483647", "err|2009|counter value overflow")
+	app.RequireQuery("GET key 60", "ok|7")
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 1, 1, 60)
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 2, 0, 60)
 	app.RequireRateLimit("RLIMIT FW limited 2 60", false, 2, 0, 60)
@@ -529,6 +539,7 @@ func TestTCPDatabaseSlaveEventuallyConvergesWithMaster(t *testing.T) {
 
 	masterApp.RequireQuery("INCR replicated_counter 600", "ok|1")
 	masterApp.RequireQuery("INCR replicated_counter 600", "ok|2")
+	masterApp.RequireQuery("INCRBY replicated_counter 600 5", "ok|7")
 	masterApp.RequireRateLimit("RLIMIT FW replicated_fw 2 600", true, 1, 1, 600)
 	masterApp.RequireRateLimit("RLIMIT FW replicated_fw 2 600", true, 2, 0, 600)
 	masterApp.RequireRateLimit("RLIMIT SW replicated_sw 2 600", true, 1, 1, 600)
@@ -545,10 +556,10 @@ func TestTCPDatabaseSlaveEventuallyConvergesWithMaster(t *testing.T) {
 	}()
 
 	require.Eventually(t, func() bool {
-		return masterApp.MinReplicaAckLSN() >= 8
+		return masterApp.MinReplicaAckLSN() >= 9
 	}, 5*time.Second, 25*time.Millisecond)
 
-	slave.RequireQuery("GET replicated_counter 600", "ok|2")
+	slave.RequireQuery("GET replicated_counter 600", "ok|7")
 	slave.RequireQuery("GET replicated_fw 600", "ok|2")
 	slave.RequireRateLimit("RLIMIT SW replicated_sw 2 600", false, 2, 0, 600)
 	slave.Close()
@@ -1554,6 +1565,13 @@ func (m *referenceModel) Apply(t *testing.T, query string) expectedResponse {
 		m.counters[key]++
 
 		return expectedResponse{raw: fmt.Sprintf("ok|%d", m.counters[key])}
+	case "INCRBY":
+		key := referenceKey{key: parts[1], window: parts[2]}
+		delta, err := strconv.Atoi(parts[3])
+		require.NoError(t, err)
+		m.counters[key] += delta
+
+		return expectedResponse{raw: fmt.Sprintf("ok|%d", m.counters[key])}
 	case "GET":
 		key := referenceKey{key: parts[1], window: parts[2]}
 
@@ -1659,9 +1677,11 @@ func (m *referenceModel) Apply(t *testing.T, query string) expectedResponse {
 
 func randomModelQuery(rng *rand.Rand) string {
 	const window = "1000000000"
-	switch rng.Intn(10) {
+	switch rng.Intn(11) {
 	case 0, 1, 2:
 		return fmt.Sprintf("INCR %s %s", randomKey(rng, "counter"), window)
+	case 9:
+		return fmt.Sprintf("INCRBY %s %s %d", randomKey(rng, "counter"), window, rng.Intn(9)+1)
 	case 3:
 		return fmt.Sprintf("GET %s %s", randomReadableKey(rng), window)
 	case 4:

@@ -445,3 +445,87 @@ func TestAppliedTxNeverGoesBackwards(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, database.Tx(10), appliedTx)
 }
+
+func TestEngineIncrBy(t *testing.T) {
+	logger := zerolog.Nop()
+	engine, err := NewEngine(HashTableBuilder, 1, &logger, nil, nil)
+	require.NoError(t, err)
+
+	key := database.BatchKey{BatchSize: 60, BatchSizeStr: "60", Key: "key"}
+	txCtx := database.TxContext{Tx: 1, DumpTx: database.NoTx, CurrTime: database.TxTime(time.Now().Unix())}
+
+	value, err := engine.IncrBy(txCtx, key, 5, nil)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(5), value)
+
+	txCtx.Tx = 2
+	value, err = engine.IncrBy(txCtx, key, 3, nil)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(8), value)
+
+	stored, found := engine.Get(key)
+	require.True(t, found)
+	require.Equal(t, database.ValueType(8), stored)
+}
+
+func TestEngineAppliesIncrByWALChunkBeforeAck(t *testing.T) {
+	walStream := make(chan wal.Chunk, 1)
+	logger := zerolog.Nop()
+	engine, err := NewEngine(HashTableBuilder, 1, &logger, walStream, nil)
+	require.NoError(t, err)
+	defer close(walStream)
+
+	key := database.BatchKey{BatchSize: 60, BatchSizeStr: "60", Key: "key"}
+	now := strconv.FormatInt(time.Now().Unix(), 16)
+	applied := make(chan error, 1)
+
+	walStream <- wal.Chunk{
+		Logs: []*wal.LogData{
+			{
+				LSN:       1,
+				CommandId: uint32(compute.IncrByCommandID),
+				Arguments: []string{key.Key, key.BatchSizeStr, now, "7"},
+			},
+			{
+				LSN:       2,
+				CommandId: uint32(compute.IncrCommandID),
+				Arguments: []string{key.Key, key.BatchSizeStr, now},
+			},
+		},
+		Applied: applied,
+	}
+
+	require.NoError(t, requireAck(t, applied))
+
+	value, found := engine.Get(key)
+	require.True(t, found)
+	require.Equal(t, database.ValueType(8), value)
+}
+
+func TestEngineIncrByWALLogWithoutDeltaIsIgnored(t *testing.T) {
+	walStream := make(chan wal.Chunk, 1)
+	logger := zerolog.Nop()
+	engine, err := NewEngine(HashTableBuilder, 1, &logger, walStream, nil)
+	require.NoError(t, err)
+	defer close(walStream)
+
+	key := database.BatchKey{BatchSize: 60, BatchSizeStr: "60", Key: "key"}
+	now := strconv.FormatInt(time.Now().Unix(), 16)
+	applied := make(chan error, 1)
+
+	walStream <- wal.Chunk{
+		Logs: []*wal.LogData{
+			{
+				LSN:       1,
+				CommandId: uint32(compute.IncrByCommandID),
+				Arguments: []string{key.Key, key.BatchSizeStr, now},
+			},
+		},
+		Applied: applied,
+	}
+
+	require.NoError(t, requireAck(t, applied))
+
+	_, found := engine.Get(key)
+	require.False(t, found)
+}
