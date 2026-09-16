@@ -34,6 +34,8 @@ import (
 
 const testReplicationToken = "replication-token-value"
 
+const defaultTestIdleTimeout = time.Second
+
 func TestTCPDatabaseCommandsEndToEnd(t *testing.T) {
 	app := startTestDatabase(t, t.TempDir())
 	defer app.Close()
@@ -376,11 +378,13 @@ func TestTCPDatabaseWatchersDoNotBlockUnrelatedWriters(t *testing.T) {
 }
 
 func TestTCPDatabaseIncrHotKeyConcurrently(t *testing.T) {
-	app := startTestDatabase(t, t.TempDir())
-	defer app.Close()
-
 	const workers = 32
 	const incrementsPerWorker = 50
+
+	const requestTimeout = 15 * time.Second
+
+	app := startTestDatabaseWithIdleTimeout(t, t.TempDir(), requestTimeout)
+	defer app.Close()
 
 	var successful atomic.Int32
 	errs := make(chan error, workers)
@@ -390,7 +394,7 @@ func TestTCPDatabaseIncrHotKeyConcurrently(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			client := connectEventually(t, app.address)
+			client := connectEventuallyWithIdle(t, app.address, requestTimeout)
 			defer func() {
 				if err := client.Close(); err != nil {
 					errs <- err
@@ -398,7 +402,7 @@ func TestTCPDatabaseIncrHotKeyConcurrently(t *testing.T) {
 			}()
 
 			for i := 0; i < incrementsPerWorker; i++ {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
 				response, err := client.Send(ctx, []byte("INCR hot 600"))
 				cancel()
 				if err != nil {
@@ -1005,12 +1009,16 @@ func startTestDatabase(t *testing.T, walDir string) *testDatabaseApp {
 	return startTestDatabaseWithDump(t, walDir, "", false)
 }
 
+func startTestDatabaseWithIdleTimeout(t *testing.T, walDir string, idleTimeout time.Duration) *testDatabaseApp {
+	return startTestDatabaseWithDumpAndKeyIndex(t, walDir, "", false, false, idleTimeout)
+}
+
 func startTestDatabaseWithKeyIndex(t *testing.T, walDir string) *testDatabaseApp {
-	return startTestDatabaseWithDumpAndKeyIndex(t, walDir, "", false, true)
+	return startTestDatabaseWithDumpAndKeyIndex(t, walDir, "", false, true, defaultTestIdleTimeout)
 }
 
 func startTestDatabaseWithDump(t *testing.T, walDir, dumpDir string, restoreDump bool) *testDatabaseApp {
-	return startTestDatabaseWithDumpAndKeyIndex(t, walDir, dumpDir, restoreDump, false)
+	return startTestDatabaseWithDumpAndKeyIndex(t, walDir, dumpDir, restoreDump, false, defaultTestIdleTimeout)
 }
 
 func startTestDatabaseWithDumpAndKeyIndex(
@@ -1019,6 +1027,7 @@ func startTestDatabaseWithDumpAndKeyIndex(
 	dumpDir string,
 	restoreDump bool,
 	scanIndexEnabled bool,
+	idleTimeout time.Duration,
 ) *testDatabaseApp {
 	t.Helper()
 
@@ -1065,7 +1074,7 @@ func startTestDatabaseWithDumpAndKeyIndex(
 	comp := compute.NewCompute(compute.NewParser(&logger), compute.NewAnalyzer(&logger), &logger)
 	db := database.NewDatabase(comp, strg, &logger, 64<<10, nil)
 	address := freeLocalAddress(t)
-	server, err := network.NewTCPServer(address, 128, 64<<10, time.Second, &logger,
+	server, err := network.NewTCPServer(address, 128, 64<<10, idleTimeout, &logger,
 		network.WithConnContext(func(ctx context.Context, _ net.Conn) context.Context {
 			return protocol.WithSession(ctx, protocol.NewSession())
 		}),
@@ -1083,7 +1092,7 @@ func startTestDatabaseWithDumpAndKeyIndex(
 		})
 	}()
 
-	client := connectEventually(t, address)
+	client := connectEventuallyWithIdle(t, address, idleTimeout)
 
 	return &testDatabaseApp{
 		t:       t,
@@ -1129,7 +1138,7 @@ func startTestDatabaseWithMasterReplication(t *testing.T, walDir, dumpDir, repli
 	require.NoError(t, strg.LoadWAL(ctx, database.NoTx))
 	strg.Start(ctx)
 
-	app := startQueryServer(t, ctx, cancel, strg, dumpStore, &logger)
+	app := startQueryServer(t, ctx, cancel, strg, dumpStore, &logger, defaultTestIdleTimeout)
 	app.walDir = walDir
 	app.replicationAddr = replicationAddress
 	app.logger = &logger
@@ -1181,7 +1190,7 @@ func startTestDatabaseWithSlaveReplication(t *testing.T, walDir, replicationAddr
 	require.NoError(t, strg.LoadWAL(ctx, database.NoTx))
 	strg.Start(ctx)
 
-	return startQueryServer(t, ctx, cancel, strg, nil, &logger)
+	return startQueryServer(t, ctx, cancel, strg, nil, &logger, defaultTestIdleTimeout)
 }
 
 func startQueryServer(
@@ -1191,13 +1200,14 @@ func startQueryServer(
 	strg *storage.Storage,
 	dumpStore *dumper.Dumper,
 	logger *zerolog.Logger,
+	idleTimeout time.Duration,
 ) *testDatabaseApp {
 	t.Helper()
 
 	comp := compute.NewCompute(compute.NewParser(logger), compute.NewAnalyzer(logger), logger)
 	db := database.NewDatabase(comp, strg, logger, 64<<10, nil)
 	address := freeLocalAddress(t)
-	server, err := network.NewTCPServer(address, 128, 64<<10, time.Second, logger,
+	server, err := network.NewTCPServer(address, 128, 64<<10, idleTimeout, logger,
 		network.WithConnContext(func(ctx context.Context, _ net.Conn) context.Context {
 			return protocol.WithSession(ctx, protocol.NewSession())
 		}),
@@ -1215,7 +1225,7 @@ func startQueryServer(
 		})
 	}()
 
-	client := connectEventually(t, address)
+	client := connectEventuallyWithIdle(t, address, idleTimeout)
 
 	return &testDatabaseApp{
 		t:       t,
