@@ -159,7 +159,42 @@ func TestTCPDatabaseAcceptsBoundaryInputs(t *testing.T) {
 	app.RequireQuery("INCR max_window 4294967295", "ok|1")
 	app.RequireQuery("GET max_window 4294967295", "ok|1")
 
-	app.RequireRateLimit("RLIMIT FW max_limit 2147483647 600", true, 1, 2147483646, 600)
+	app.RequireRateLimit("RLIMIT FW max_limit 9223372036854775807 600", true, 1, 9223372036854775806, 600)
+}
+
+func TestTCPDatabaseHandlesValuesBeyondInt32(t *testing.T) {
+	app := startTestDatabase(t, t.TempDir())
+	defer app.Close()
+
+	app.RequireQuery("INCRBY wide 600 5000000000", "ok|5000000000")
+	app.RequireQuery("INCRBY wide 600 5000000000", "ok|10000000000")
+	app.RequireQuery("GET wide 600", "ok|10000000000")
+
+	app.RequireRateLimit("RLIMIT FW wide_fw 5000000000 600", true, 1, 4999999999, 600)
+	app.RequireRateLimit("RLIMIT SW wide_sw 5000000000 600", true, 1, 4999999999, 600)
+	app.RequireRateLimit("RLIMIT TB wide_tb 5000000000 1 600", true, 1, 4999999999, 600)
+
+	app.RequireQuery("QUOTA SET wide_quota 5000000000", "ok|1")
+	app.RequireQuotaAcquire("QUOTA ACQ wide_quota 4000000000 client-a", true, 4000000000, 4000000000, 1000000000, 0)
+	app.RequireQuotaInfo("QUOTA INF wide_quota", 5000000000, 4000000000, 1000000000, []testQuotaClient{
+		{clientID: "client-a", amount: 4000000000},
+	})
+}
+
+func TestTCPDatabaseRecoversValuesBeyondInt32(t *testing.T) {
+	walDir := t.TempDir()
+	dumpDir := t.TempDir()
+
+	first := startTestDatabaseWithDump(t, walDir, dumpDir, false)
+	first.RequireQuery("INCRBY wide_durable 600 6000000000", "ok|6000000000")
+	require.NoError(t, first.makeDump(database.Tx(1)))
+	first.RequireQuery("INCRBY wide_durable 600 1000000000", "ok|7000000000")
+	first.Close()
+
+	second := startTestDatabaseWithDump(t, walDir, dumpDir, true)
+	defer second.Close()
+
+	second.RequireQuery("GET wide_durable 600", "ok|7000000000")
 }
 
 func TestHandshakeRequiredOverTCP(t *testing.T) {
