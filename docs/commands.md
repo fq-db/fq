@@ -320,8 +320,9 @@ AUTH <token>
 
 - `INCR`: increments the counter for a key inside a time window
 - `INCRBY`: adds `<value>` to the counter for a key inside a time window; `<value>` is an
-  integer between 1 and 2147483647. The counter is capped at 2147483647 — a request that
-  would push it past that limit answers `err|2009` and leaves the counter untouched
+  integer between 1 and 9223372036854775807. The counter is capped at 9223372036854775807
+  — a request that would push it past that limit answers `err|2009` and leaves the counter
+  untouched
 - `GET`: returns the current counter value
 - `DEL`: deletes counter and limiter state for the key/window pair
 - `MDEL`: deletes multiple key/window pairs

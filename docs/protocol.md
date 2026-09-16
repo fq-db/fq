@@ -165,7 +165,7 @@ same category. Codes are never reused for a different meaning.
 | 2006 | invalid rate limit algorithm | `RLIMIT` was given an algorithm other than `FW`, `SW` or `TB` |
 | 2007 | invalid scan count | The `SCAN`/`PSCAN` count is outside the accepted range |
 | 2008 | invalid scan cursor | The cursor was not produced by a previous scan |
-| 2009 | counter value overflow | `INCR`/`INCRBY` would push the counter past 2147483647; the counter is left unchanged |
+| 2009 | counter value overflow | `INCR`/`INCRBY` would push the counter past 9223372036854775807; the counter is left unchanged |
 
 ### 3xxx — authentication and authorization
 

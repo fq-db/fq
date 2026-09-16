@@ -11,13 +11,25 @@ change behavior, and patch releases are reserved for compatible fixes.
 
 - New `INCRBY <key> <window> <value>` command. It behaves exactly like `INCR` — same
   window semantics, same `rw` role, same replication and WAL recovery path — except it
-  adds `<value>` instead of one. `<value>` is an integer between 1 and 2147483647.
+  adds `<value>` instead of one. `<value>` is an integer between 1 and
+  9223372036854775807.
 
 ### Changed
 
-- Counters are capped at 2147483647. `INCR` and `INCRBY` now answer with the new error
-  code `2009` and leave the counter untouched when the increment would push it past that
-  value; previously `INCR` silently wrapped around into negative numbers.
+- Counter, rate limit and quota values are now 64-bit. Limits, amounts and stored values
+  accept anything from 1 to 9223372036854775807 instead of topping out at 2147483647.
+  Dump files and replication streams written by this version are not readable by earlier
+  versions once a value exceeds 2147483647.
+- Counters are capped at 9223372036854775807. `INCR` and `INCRBY` answer with the new
+  error code `2009` and leave the counter untouched when the increment would push it past
+  that value; previously `INCR` silently wrapped around into negative numbers.
+
+### Fixed
+
+- Fixed a token bucket collapsing to empty after a long idle period. The refill computed
+  elapsed periods times the refill amount in a product that could overflow, leaving the
+  bucket with a negative token count that read as exhausted. Refill now saturates at the
+  bucket capacity.
 
 ## [v0.10.1]
 
