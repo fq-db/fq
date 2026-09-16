@@ -29,6 +29,14 @@ func TestAnalyzeQuery(t *testing.T) {
 			tokens: []string{"INCR", "key"},
 			err:    compute.ErrInvalidArguments,
 		},
+		"invalid number arguments for incrby query": {
+			tokens: []string{"INCRBY", "key", "60"},
+			err:    compute.ErrInvalidArguments,
+		},
+		"too many arguments for incrby query": {
+			tokens: []string{"INCRBY", "key", "60", "5", "7"},
+			err:    compute.ErrInvalidArguments,
+		},
 		"invalid number arguments for get query": {
 			tokens: []string{"GET", "key"},
 			err:    compute.ErrInvalidArguments,
@@ -56,6 +64,10 @@ func TestAnalyzeQuery(t *testing.T) {
 		"valid incr query": {
 			tokens: []string{"INCR", "key", "60"},
 			query:  compute.NewQuery(compute.IncrCommandID, []string{"key", "60"}),
+		},
+		"valid incrby query": {
+			tokens: []string{"INCRBY", "key", "60", "5"},
+			query:  compute.NewQuery(compute.IncrByCommandID, []string{"key", "60", "5"}),
 		},
 		"valid get query": {
 			tokens: []string{"GET", "key", "60"},

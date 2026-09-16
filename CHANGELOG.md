@@ -5,6 +5,20 @@ All notable changes to fq will be documented in this file.
 This project follows semantic versioning while it is pre-1.0: minor releases may
 change behavior, and patch releases are reserved for compatible fixes.
 
+## [Unreleased]
+
+### Added
+
+- New `INCRBY <key> <window> <value>` command. It behaves exactly like `INCR` — same
+  window semantics, same `rw` role, same replication and WAL recovery path — except it
+  adds `<value>` instead of one. `<value>` is an integer between 1 and 2147483647.
+
+### Changed
+
+- Counters are capped at 2147483647. `INCR` and `INCRBY` now answer with the new error
+  code `2009` and leave the counter untouched when the increment would push it past that
+  value; previously `INCR` silently wrapped around into negative numbers.
+
 ## [v0.10.1]
 
 ### Changed

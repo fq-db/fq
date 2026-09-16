@@ -129,6 +129,19 @@ func TestParserParseAndAnalyzeQuery(t *testing.T) {
 			command: compute.IncrCommandID,
 			args:    []string{"key", "60"},
 		},
+		"invalid incrby arguments": {
+			query: "INCRBY key 60",
+			err:   compute.ErrInvalidArguments,
+		},
+		"too many incrby arguments": {
+			query: "INCRBY key 60 5 7",
+			err:   compute.ErrInvalidArguments,
+		},
+		"valid lowercase incrby": {
+			query:   "incrby key 60 5",
+			command: compute.IncrByCommandID,
+			args:    []string{"key", "60", "5"},
+		},
 		"valid mdel": {
 			query:   "MDEL key1 60 key2 60",
 			command: compute.MDelCommandID,

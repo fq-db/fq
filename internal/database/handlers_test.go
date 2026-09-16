@@ -152,3 +152,28 @@ func TestMakeTTLBoundaries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, uint32(5), value)
 }
+
+func TestHandleIncrByQuery(t *testing.T) {
+	db := newTestDatabase(t)
+	ctx := adminContext(t, db)
+
+	require.Equal(t, "ok|5", db.HandleQuery(ctx, "INCRBY key 60 5"))
+}
+
+func TestHandleIncrByQueryRejectsInvalidDelta(t *testing.T) {
+	db := newTestDatabase(t)
+	ctx := adminContext(t, db)
+
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 0"), "err|2005")
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 abc"), "err|2004")
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 2147483648"), "err|2005")
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60"), "err|1002")
+}
+
+func TestHandleIncrByQueryRejectedOnReadOnlyReplica(t *testing.T) {
+	db := newTestDatabase(t)
+	ctx := adminContext(t, db)
+	db.readOnly = func() bool { return true }
+
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 5"), "err|5005")
+}

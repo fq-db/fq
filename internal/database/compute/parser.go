@@ -112,6 +112,8 @@ func (s *tokenScanner) scanQuery(commandID CommandID) (Query, error) {
 	switch commandID {
 	case IncrCommandID, GetCommandID, DelCommandID, WatchCommandID:
 		return s.scanFixedQuery(commandID, 2)
+	case IncrByCommandID:
+		return s.scanFixedQuery(commandID, 3)
 	case HelloCommandID:
 		return s.scanHelloQuery()
 	case StreamCommandID:
@@ -353,6 +355,8 @@ func commandIDFromToken(token string) CommandID {
 	switch {
 	case asciiEqualFold(token, IncrCommand):
 		return IncrCommandID
+	case asciiEqualFold(token, IncrByCommand):
+		return IncrByCommandID
 	case asciiEqualFold(token, GetCommand):
 		return GetCommandID
 	case asciiEqualFold(token, DelCommand):

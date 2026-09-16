@@ -139,6 +139,20 @@ func (e *txRecordingEngine) Incr(
 	return 1, nil
 }
 
+func (e *txRecordingEngine) IncrBy(
+	txCtx database.TxContext,
+	_ database.BatchKey,
+	delta database.ValueType,
+	beforeApply func() error,
+) (database.ValueType, error) {
+	e.lastTx = txCtx.Tx
+	if err := beforeApply(); err != nil {
+		return 0, err
+	}
+
+	return delta, nil
+}
+
 func (e *txRecordingEngine) RLimitFixedWindow(
 	txCtx database.TxContext,
 	_ database.BatchKey,

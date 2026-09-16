@@ -31,6 +31,12 @@ var (
 
 type hashTable interface {
 	Incr(txCtx database.TxContext, key database.BatchKey, beforeApply func() error) (database.ValueType, error)
+	IncrBy(
+		txCtx database.TxContext,
+		key database.BatchKey,
+		delta database.ValueType,
+		beforeApply func() error,
+	) (database.ValueType, error)
 	RLimitFixedWindow(
 		txCtx database.TxContext,
 		key database.BatchKey,
@@ -218,6 +224,15 @@ func (e *Engine) Incr(
 	key database.BatchKey,
 	beforeApply func() error,
 ) (database.ValueType, error) {
+	return e.IncrBy(txCtx, key, 1, beforeApply)
+}
+
+func (e *Engine) IncrBy(
+	txCtx database.TxContext,
+	key database.BatchKey,
+	delta database.ValueType,
+	beforeApply func() error,
+) (database.ValueType, error) {
 	if txCtx.FromWAL && isExpired(txCtx.CurrTime, database.TxTime(key.BatchSize)) {
 		// expired value
 		return 0, nil // return 0 for WAL worker
@@ -225,7 +240,7 @@ func (e *Engine) Incr(
 
 	idx := e.partitionIdx(key.Key)
 	partition := e.partitions[idx]
-	value, err := partition.Incr(txCtx, key, beforeApply)
+	value, err := partition.IncrBy(txCtx, key, delta, beforeApply)
 	if err != nil {
 		return 0, err
 	}
@@ -689,6 +704,8 @@ func (e *Engine) applyLog(log *wal.LogData) {
 	switch compute.CommandID(log.CommandId) {
 	case compute.IncrCommandID:
 		e.applyIncrFromLog(log)
+	case compute.IncrByCommandID:
+		e.applyIncrByFromLog(log)
 	case compute.DelCommandID:
 		e.applyDelFromLog(log)
 	case compute.MDelCommandID:
@@ -715,6 +732,7 @@ func (e *Engine) applyLog(log *wal.LogData) {
 func (e *Engine) walLogPartitionIdx(log *wal.LogData) (int, bool) {
 	switch compute.CommandID(log.CommandId) {
 	case compute.IncrCommandID,
+		compute.IncrByCommandID,
 		compute.DelCommandID,
 		compute.RLimitSlidingWindowCommandID,
 		compute.RLimitTokenBucketCommandID,
@@ -981,6 +999,37 @@ func (e *Engine) applyIncrFromLog(log *wal.LogData) {
 		value, err := e.Incr(txCtx, key, nil)
 		if err != nil {
 			e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "INCR").Msg("failed to apply WAL log")
+		}
+
+		return value
+	})
+}
+
+func (e *Engine) applyIncrByFromLog(log *wal.LogData) {
+	if len(log.Arguments) < 4 {
+		e.logger.Error().
+			Uint64("lsn", log.LSN).
+			Int("arguments_count", len(log.Arguments)).
+			Str("command", "INCRBY").
+			Msg("invalid WAL log: insufficient arguments")
+
+		return
+	}
+
+	delta, err := strconv.ParseUint(log.Arguments[3], 10, 31)
+	if err != nil {
+		e.logger.Error().Err(err).Uint64("lsn", log.LSN).Str("command", "INCRBY").Msg("failed to parse delta")
+
+		return
+	}
+
+	e.applySingleKeyLog(log, "INCRBY", func(txCtx database.TxContext, key database.BatchKey) database.ValueType {
+		value, applyErr := e.IncrBy(txCtx, key, database.ValueType(delta), nil)
+		if applyErr != nil {
+			e.logger.Error().Err(applyErr).
+				Uint64("lsn", log.LSN).
+				Str("command", "INCRBY").
+				Msg("failed to apply WAL log")
 		}
 
 		return value

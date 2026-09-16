@@ -10,6 +10,7 @@ import (
 
 func TestCommandNameToCommandID(t *testing.T) {
 	require.Equal(t, compute.IncrCommandID, compute.CommandNameToCommandID("INCR"))
+	require.Equal(t, compute.IncrByCommandID, compute.CommandNameToCommandID("INCRBY"))
 	require.Equal(t, compute.GetCommandID, compute.CommandNameToCommandID("GET"))
 	require.Equal(t, compute.DelCommandID, compute.CommandNameToCommandID("DEL"))
 	require.Equal(t, compute.HelloCommandID, compute.CommandNameToCommandID("HELLO"))
@@ -41,4 +42,7 @@ func TestPersistentCommandIDsDoNotDrift(t *testing.T) {
 	require.Equal(t, compute.CommandID(21), compute.TruncateCommandID)
 	require.Equal(t, compute.CommandID(22), compute.ScanCommandID)
 	require.Equal(t, compute.CommandID(23), compute.PScanCommandID)
+	require.Equal(t, compute.CommandID(24), compute.InspectCommandID)
+	require.Equal(t, compute.CommandID(25), compute.AuthCommandID)
+	require.Equal(t, compute.CommandID(26), compute.IncrByCommandID)
 }

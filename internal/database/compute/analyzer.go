@@ -12,6 +12,7 @@ import (
 
 const (
 	incrQueryArgumentsNumber     = 2
+	incrByQueryArgumentsNumber   = 3
 	getQueryArgumentsNumber      = 2
 	delQueryArgumentsNumber      = 2
 	helloQueryArgumentsNumber    = -6
@@ -33,6 +34,7 @@ const (
 
 var queryArgumentsNumber = map[CommandID]int{
 	IncrCommandID:     incrQueryArgumentsNumber,
+	IncrByCommandID:   incrByQueryArgumentsNumber,
 	GetCommandID:      getQueryArgumentsNumber,
 	DelCommandID:      delQueryArgumentsNumber,
 	HelloCommandID:    helloQueryArgumentsNumber,

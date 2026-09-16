@@ -29,11 +29,13 @@ const (
 	PScanCommandID
 	InspectCommandID
 	AuthCommandID
+	IncrByCommandID
 )
 
 var (
 	UnknownCommand  = "UNKNOWN"
 	IncrCommand     = "INCR"
+	IncrByCommand   = "INCRBY"
 	GetCommand      = "GET"
 	DelCommand      = "DEL"
 	HelloCommand    = "HELLO"
@@ -56,6 +58,7 @@ var (
 var commandNamesToID = map[string]CommandID{
 	UnknownCommand:  UnknownCommandID,
 	IncrCommand:     IncrCommandID,
+	IncrByCommand:   IncrByCommandID,
 	GetCommand:      GetCommandID,
 	DelCommand:      DelCommandID,
 	HelloCommand:    HelloCommandID,

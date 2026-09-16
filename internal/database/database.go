@@ -62,6 +62,7 @@ type computeLayer interface {
 
 type storageLayer interface {
 	Incr(ctx context.Context, key BatchKey) (ValueType, error)
+	IncrBy(ctx context.Context, key BatchKey, delta ValueType) (ValueType, error)
 	Get(ctx context.Context, key BatchKey) (ValueType, error)
 	Del(ctx context.Context, key BatchKey) (bool, error)
 	MDel(ctx context.Context, keys []BatchKey) ([]bool, error)
@@ -214,6 +215,8 @@ func (d *Database) HandleQueryStream(ctx context.Context, queryStr string, write
 	switch query.CommandID() {
 	case compute.IncrCommandID:
 		response = d.handleIncrQuery(ctx, query, responseBuffer.buf[:0])
+	case compute.IncrByCommandID:
+		response = d.handleIncrByQuery(ctx, query, responseBuffer.buf[:0])
 	case compute.GetCommandID:
 		response = d.handleGetQuery(ctx, query, responseBuffer.buf[:0])
 	case compute.DelCommandID:
@@ -488,6 +491,25 @@ func (d *Database) handleIncrQuery(ctx context.Context, query compute.Query, dst
 	}
 
 	value, err := d.storageLayer.Incr(ctx, key)
+	if err != nil {
+		return d.appendErrorMsg(dst, err)
+	}
+
+	return appendValueMsg(dst, value)
+}
+
+func (d *Database) handleIncrByQuery(ctx context.Context, query compute.Query, dst []byte) []byte {
+	key, err := makeBatchKey(query.Arg(0), query.Arg(1))
+	if err != nil {
+		return d.appendErrorMsg(dst, err)
+	}
+
+	delta, err := makeLimit(query.Arg(2))
+	if err != nil {
+		return d.appendErrorMsg(dst, err)
+	}
+
+	value, err := d.storageLayer.IncrBy(ctx, key, delta)
 	if err != nil {
 		return d.appendErrorMsg(dst, err)
 	}

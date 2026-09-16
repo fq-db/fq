@@ -312,6 +312,30 @@ func (w *WAL) IncrAsync(ctx context.Context, txCtx database.TxContext, key datab
 	w.pushAsync(ctx, txCtx.Tx, compute.IncrCommandID, []string{key.Key, key.BatchSizeStr, currTimeStr})
 }
 
+func (w *WAL) IncrBy(
+	ctx context.Context,
+	txCtx database.TxContext,
+	key database.BatchKey,
+	delta database.ValueType,
+) tools.FutureError {
+	currTimeStr := strconv.FormatUint(uint64(txCtx.CurrTime), 16)
+	deltaStr := strconv.FormatInt(int64(delta), 10)
+
+	return w.push(ctx, txCtx.Tx, compute.IncrByCommandID, []string{key.Key, key.BatchSizeStr, currTimeStr, deltaStr})
+}
+
+func (w *WAL) IncrByAsync(
+	ctx context.Context,
+	txCtx database.TxContext,
+	key database.BatchKey,
+	delta database.ValueType,
+) {
+	currTimeStr := strconv.FormatUint(uint64(txCtx.CurrTime), 16)
+	deltaStr := strconv.FormatInt(int64(delta), 10)
+
+	w.pushAsync(ctx, txCtx.Tx, compute.IncrByCommandID, []string{key.Key, key.BatchSizeStr, currTimeStr, deltaStr})
+}
+
 func (w *WAL) Del(ctx context.Context, txCtx database.TxContext, key database.BatchKey) tools.FutureError {
 	currTimeStr := strconv.FormatUint(uint64(txCtx.CurrTime), 16)
 

@@ -165,6 +165,7 @@ same category. Codes are never reused for a different meaning.
 | 2006 | invalid rate limit algorithm | `RLIMIT` was given an algorithm other than `FW`, `SW` or `TB` |
 | 2007 | invalid scan count | The `SCAN`/`PSCAN` count is outside the accepted range |
 | 2008 | invalid scan cursor | The cursor was not produced by a previous scan |
+| 2009 | counter value overflow | `INCR`/`INCRBY` would push the counter past 2147483647; the counter is left unchanged |
 
 ### 3xxx — authentication and authorization
 
@@ -224,6 +225,7 @@ Counters:
 
 ```text
 INCR <key> <window>          -> ok|<value>
+INCRBY <key> <window> <delta> -> ok|<value>
 GET <key> <window>           -> ok|<value>
 DEL <key> <window>           -> ok|<0|1>
 MDEL <key> <window> ...      -> ok|<0|1>[;<0|1>...]
@@ -269,7 +271,7 @@ Roles are hierarchical — `admin` includes `rw`, and `rw` includes `ro`:
 | Role | Commands |
 |---|---|
 | `ro` | `GET`, `SCAN`, `PSCAN`, `WATCH`, `STREAM`, `PSTREAM`, `QSTREAM`, `QPSTREAM`, `QUOTA INF` |
-| `rw` | everything in `ro`, plus `INCR`, `DEL`, `MDEL`, `RLIMIT`, and the remaining `QUOTA` subcommands |
+| `rw` | everything in `ro`, plus `INCR`, `INCRBY`, `DEL`, `MDEL`, `RLIMIT`, and the remaining `QUOTA` subcommands |
 | `admin` | everything in `rw`, plus `FLUSHDB`, `TRUNCATE`, and `INSPECT` |
 
 `HELLO` and `AUTH` sit outside the role matrix.

@@ -2,6 +2,7 @@ package inmemory
 
 import (
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -357,4 +358,111 @@ func TestElem_DumpValue(t *testing.T) {
 	require.Equal(t, database.ValueType(2), v)
 	require.Equal(t, now, lastTime)
 	require.Equal(t, database.Tx(1001), tx)
+}
+
+func TestElem_IncrBy(t *testing.T) {
+	currTime := database.TxTime(time.Now().Unix())
+
+	t.Run("adds delta", func(t *testing.T) {
+		e := NewFqElem(60)
+
+		value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, 5, nil)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(5), value)
+
+		value, err = e.IncrBy(database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: currTime}, 7, nil)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(12), value)
+		require.Equal(t, database.Tx(1001), e.ver)
+	})
+
+	t.Run("resets on a new batch", func(t *testing.T) {
+		e := NewFqElem(1)
+
+		value, err := e.IncrBy(
+			database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: database.TxTime(time.Now().Unix())},
+			10,
+			nil,
+		)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(10), value)
+
+		time.Sleep(time.Millisecond * 1200)
+
+		value, err = e.IncrBy(
+			database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: database.TxTime(time.Now().Unix())},
+			3,
+			nil,
+		)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(3), value)
+	})
+
+	t.Run("keeps the dump snapshot", func(t *testing.T) {
+		e := NewFqElem(60)
+
+		value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: 1000, CurrTime: currTime}, 4, nil)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(4), value)
+		require.Equal(t, database.Tx(1000), e.dumpVer)
+		require.Equal(t, database.ValueType(4), e.dumpValue)
+
+		value, err = e.IncrBy(database.TxContext{Tx: 1001, DumpTx: 1000, CurrTime: currTime}, 6, nil)
+		require.NoError(t, err)
+		require.Equal(t, database.ValueType(10), value)
+		require.Equal(t, database.Tx(1000), e.dumpVer)
+		require.Equal(t, database.ValueType(4), e.dumpValue)
+	})
+
+	t.Run("runs before apply before mutation", func(t *testing.T) {
+		e := NewFqElem(60)
+		errBoom := errors.New("boom")
+
+		value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: 100}, 9, func() error {
+			require.Equal(t, database.ValueType(0), e.value)
+
+			return errBoom
+		})
+		require.ErrorIs(t, err, errBoom)
+		require.Equal(t, database.ValueType(0), value)
+		require.Equal(t, database.ValueType(0), e.value)
+		require.Equal(t, database.NoTx, e.ver)
+	})
+}
+
+func TestElem_IncrByOverflow(t *testing.T) {
+	currTime := database.TxTime(time.Now().Unix())
+	e := NewFqElem(60)
+
+	value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(math.MaxInt32), value)
+
+	beforeApplyCalled := false
+	value, err = e.IncrBy(
+		database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: currTime},
+		1,
+		func() error {
+			beforeApplyCalled = true
+
+			return nil
+		},
+	)
+	require.ErrorIs(t, err, database.ErrValueOverflow)
+	require.Equal(t, database.ValueType(0), value)
+	require.False(t, beforeApplyCalled)
+	require.Equal(t, database.ValueType(math.MaxInt32), e.value)
+	require.Equal(t, database.Tx(1000), e.ver)
+}
+
+func TestElem_IncrOverflow(t *testing.T) {
+	currTime := database.TxTime(time.Now().Unix())
+	e := NewFqElem(60)
+
+	_, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	require.NoError(t, err)
+
+	_, err = e.Incr(database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: currTime}, nil)
+	require.ErrorIs(t, err, database.ErrValueOverflow)
+	require.Equal(t, database.ValueType(math.MaxInt32), e.value)
 }

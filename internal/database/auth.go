@@ -21,6 +21,7 @@ var commandRoles = map[compute.CommandID]security.Role{
 	compute.QStreamCommandID:  security.RoleRO,
 	compute.QPStreamCommandID: security.RoleRO,
 	compute.IncrCommandID:     security.RoleRW,
+	compute.IncrByCommandID:   security.RoleRW,
 	compute.DelCommandID:      security.RoleRW,
 	compute.MDelCommandID:     security.RoleRW,
 	compute.RLimitCommandID:   security.RoleRW,
