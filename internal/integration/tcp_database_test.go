@@ -48,12 +48,12 @@ func TestTCPDatabaseCommandsEndToEnd(t *testing.T) {
 	app.RequireQuery("INCRBY key 60 5", "ok|7")
 	app.RequireQuery("GET key 60", "ok|7")
 	app.RequireQuery("INCRBY fresh 60 3", "ok|3")
-	app.RequireQuery("INCRBY fresh 60 0", "err|2005|invalid limit: 0 (must be between 1 and 2147483647)")
+	app.RequireQuery("INCRBY fresh 60 0", "err|2005|invalid limit: 0 (must be between 1 and 9223372036854775807)")
 	app.RequireQuery("INCRBY fresh 60 abc", "err|2004|limit is not a number")
 	app.RequireQuery("INCRBY fresh 60", "err|1002|invalid arguments")
 	app.RequireQuery("GET fresh 60", "ok|3")
 	app.RequireQuery("MDEL fresh 60", "ok|1")
-	app.RequireQuery("INCRBY key 60 2147483647", "err|2009|counter value overflow")
+	app.RequireQuery("INCRBY key 60 9223372036854775807", "err|2009|counter value overflow")
 	app.RequireQuery("GET key 60", "ok|7")
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 1, 1, 60)
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 2, 0, 60)
@@ -129,12 +129,12 @@ func TestTCPDatabaseRejectsInvalidInputsWithoutMutatingState(t *testing.T) {
 		"RLIMIT FW stable bad-limit 600",
 		"RLIMIT FW stable 0 600",
 		"RLIMIT FW stable -1 600",
-		"RLIMIT FW stable 2147483648 600",
+		"RLIMIT FW stable 9223372036854775808 600",
 		"RLIMIT FW stable 2 4294967296",
 		"RLIMIT TB stable 10 bad-refill 600",
 		"RLIMIT TB stable 10 0 600",
-		"RLIMIT TB stable 2147483648 1 600",
-		"RLIMIT TB stable 10 2147483648 600",
+		"RLIMIT TB stable 9223372036854775808 1 600",
+		"RLIMIT TB stable 10 9223372036854775808 600",
 		"RLIMIT TB stable 10 1 4294967296",
 		"INCR " + oversizedKey + " 600",
 	}
@@ -159,7 +159,42 @@ func TestTCPDatabaseAcceptsBoundaryInputs(t *testing.T) {
 	app.RequireQuery("INCR max_window 4294967295", "ok|1")
 	app.RequireQuery("GET max_window 4294967295", "ok|1")
 
-	app.RequireRateLimit("RLIMIT FW max_limit 2147483647 600", true, 1, 2147483646, 600)
+	app.RequireRateLimit("RLIMIT FW max_limit 9223372036854775807 600", true, 1, 9223372036854775806, 600)
+}
+
+func TestTCPDatabaseHandlesValuesBeyondInt32(t *testing.T) {
+	app := startTestDatabase(t, t.TempDir())
+	defer app.Close()
+
+	app.RequireQuery("INCRBY wide 600 5000000000", "ok|5000000000")
+	app.RequireQuery("INCRBY wide 600 5000000000", "ok|10000000000")
+	app.RequireQuery("GET wide 600", "ok|10000000000")
+
+	app.RequireRateLimit("RLIMIT FW wide_fw 5000000000 600", true, 1, 4999999999, 600)
+	app.RequireRateLimit("RLIMIT SW wide_sw 5000000000 600", true, 1, 4999999999, 600)
+	app.RequireRateLimit("RLIMIT TB wide_tb 5000000000 1 600", true, 1, 4999999999, 600)
+
+	app.RequireQuery("QUOTA SET wide_quota 5000000000", "ok|1")
+	app.RequireQuotaAcquire("QUOTA ACQ wide_quota 4000000000 client-a", true, 4000000000, 4000000000, 1000000000, 0)
+	app.RequireQuotaInfo("QUOTA INF wide_quota", 5000000000, 4000000000, 1000000000, []testQuotaClient{
+		{clientID: "client-a", amount: 4000000000},
+	})
+}
+
+func TestTCPDatabaseRecoversValuesBeyondInt32(t *testing.T) {
+	walDir := t.TempDir()
+	dumpDir := t.TempDir()
+
+	first := startTestDatabaseWithDump(t, walDir, dumpDir, false)
+	first.RequireQuery("INCRBY wide_durable 600 6000000000", "ok|6000000000")
+	require.NoError(t, first.makeDump(database.Tx(1)))
+	first.RequireQuery("INCRBY wide_durable 600 1000000000", "ok|7000000000")
+	first.Close()
+
+	second := startTestDatabaseWithDump(t, walDir, dumpDir, true)
+	defer second.Close()
+
+	second.RequireQuery("GET wide_durable 600", "ok|7000000000")
 }
 
 func TestHandshakeRequiredOverTCP(t *testing.T) {

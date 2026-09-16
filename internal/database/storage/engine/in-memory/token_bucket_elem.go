@@ -101,6 +101,10 @@ func (e *TokenBucketElem) refillLocked(
 		e.tokens = capacity
 	}
 
+	if e.tokens < 0 {
+		e.tokens = 0
+	}
+
 	if e.tokens == capacity {
 		e.lastRefillAt = now
 
@@ -111,20 +115,31 @@ func (e *TokenBucketElem) refillLocked(
 		return
 	}
 
+	if refillAmount <= 0 {
+		return
+	}
+
 	periods := (now - e.lastRefillAt) / e.refillWindow
 	if periods == 0 {
 		return
 	}
 
-	refilledTokens := int64(e.tokens) + int64(periods)*int64(refillAmount)
-	if refilledTokens >= int64(capacity) {
+	if int64(periods) > int64((capacity-e.tokens)/refillAmount) {
 		e.tokens = capacity
 		e.lastRefillAt = now
 
 		return
 	}
 
-	e.tokens = database.ValueType(refilledTokens)
+	refilledTokens := e.tokens + database.ValueType(periods)*refillAmount
+	if refilledTokens >= capacity {
+		e.tokens = capacity
+		e.lastRefillAt = now
+
+		return
+	}
+
+	e.tokens = refilledTokens
 	e.lastRefillAt += periods * e.refillWindow
 }
 

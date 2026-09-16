@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"errors"
+	"math"
 	"strings"
 	"testing"
 
@@ -166,7 +167,7 @@ func TestHandleIncrByQueryRejectsInvalidDelta(t *testing.T) {
 
 	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 0"), "err|2005")
 	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 abc"), "err|2004")
-	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 2147483648"), "err|2005")
+	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 9223372036854775808"), "err|2005")
 	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60"), "err|1002")
 }
 
@@ -176,4 +177,26 @@ func TestHandleIncrByQueryRejectedOnReadOnlyReplica(t *testing.T) {
 	db.readOnly = func() bool { return true }
 
 	require.Contains(t, db.HandleQuery(ctx, "INCRBY key 60 5"), "err|5005")
+}
+
+func TestMakeLimitBoundaries(t *testing.T) {
+	_, err := makeLimit("not-a-number")
+	require.Error(t, err)
+
+	_, err = makeLimit("0")
+	require.Error(t, err)
+
+	_, err = makeLimit("-1")
+	require.Error(t, err)
+
+	value, err := makeLimit("2147483648")
+	require.NoError(t, err)
+	require.Equal(t, ValueType(2147483648), value)
+
+	value, err = makeLimit("9223372036854775807")
+	require.NoError(t, err)
+	require.Equal(t, ValueType(math.MaxInt64), value)
+
+	_, err = makeLimit("9223372036854775808")
+	require.ErrorIs(t, err, errInvalidLimit)
 }

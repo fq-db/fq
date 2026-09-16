@@ -529,3 +529,42 @@ func TestEngineIncrByWALLogWithoutDeltaIsIgnored(t *testing.T) {
 	_, found := engine.Get(key)
 	require.False(t, found)
 }
+
+func TestEngineAppliesWALValuesBeyondInt32(t *testing.T) {
+	walStream := make(chan wal.Chunk, 1)
+	logger := zerolog.Nop()
+	engine, err := NewEngine(HashTableBuilder, 1, &logger, walStream, nil)
+	require.NoError(t, err)
+	defer close(walStream)
+
+	counter := database.BatchKey{BatchSize: 600, BatchSizeStr: "600", Key: "counter"}
+	limited := database.BatchKey{BatchSize: 600, BatchSizeStr: "600", Key: "limited"}
+	now := strconv.FormatInt(time.Now().Unix(), 16)
+	applied := make(chan error, 1)
+
+	walStream <- wal.Chunk{
+		Logs: []*wal.LogData{
+			{
+				LSN:       1,
+				CommandId: uint32(compute.IncrByCommandID),
+				Arguments: []string{counter.Key, counter.BatchSizeStr, now, "5000000000"},
+			},
+			{
+				LSN:       2,
+				CommandId: uint32(compute.RLimitFixedWindowCommandID),
+				Arguments: []string{limited.Key, "5000000000", limited.BatchSizeStr, now},
+			},
+		},
+		Applied: applied,
+	}
+
+	require.NoError(t, requireAck(t, applied))
+
+	value, found := engine.Get(counter)
+	require.True(t, found)
+	require.Equal(t, database.ValueType(5000000000), value)
+
+	value, found = engine.Get(limited)
+	require.True(t, found)
+	require.Equal(t, database.ValueType(1), value)
+}
