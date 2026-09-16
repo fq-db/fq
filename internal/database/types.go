@@ -13,7 +13,7 @@ const (
 	DumpElemKindCheckpoint          uint32 = 5
 )
 
-type ValueType int32
+type ValueType int64
 
 type QuotaOwnership uint32
 

@@ -20,7 +20,7 @@ const (
 	maxKeyLength = 1024
 	maxBatchSize = math.MaxUint32
 	minBatchSize = 1
-	maxLimit     = uint64(1<<31 - 1)
+	maxLimit     = uint64(math.MaxInt64)
 	minLimit     = 1
 	maxScanCount = uint64(10000)
 
@@ -842,7 +842,7 @@ func (d *Database) appendErrorMsg(dst []byte, err error) []byte {
 
 func appendValueMsg(dst []byte, v ValueType) []byte {
 	dst = append(dst, "ok|"...)
-	dst = strconv.AppendUint(dst, uint64(v), 10)
+	dst = strconv.AppendInt(dst, int64(v), 10)
 
 	return dst
 }

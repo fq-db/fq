@@ -48,12 +48,12 @@ func TestTCPDatabaseCommandsEndToEnd(t *testing.T) {
 	app.RequireQuery("INCRBY key 60 5", "ok|7")
 	app.RequireQuery("GET key 60", "ok|7")
 	app.RequireQuery("INCRBY fresh 60 3", "ok|3")
-	app.RequireQuery("INCRBY fresh 60 0", "err|2005|invalid limit: 0 (must be between 1 and 2147483647)")
+	app.RequireQuery("INCRBY fresh 60 0", "err|2005|invalid limit: 0 (must be between 1 and 9223372036854775807)")
 	app.RequireQuery("INCRBY fresh 60 abc", "err|2004|limit is not a number")
 	app.RequireQuery("INCRBY fresh 60", "err|1002|invalid arguments")
 	app.RequireQuery("GET fresh 60", "ok|3")
 	app.RequireQuery("MDEL fresh 60", "ok|1")
-	app.RequireQuery("INCRBY key 60 2147483647", "err|2009|counter value overflow")
+	app.RequireQuery("INCRBY key 60 9223372036854775807", "err|2009|counter value overflow")
 	app.RequireQuery("GET key 60", "ok|7")
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 1, 1, 60)
 	app.RequireRateLimit("RLIMIT FW limited 2 60", true, 2, 0, 60)
@@ -129,12 +129,12 @@ func TestTCPDatabaseRejectsInvalidInputsWithoutMutatingState(t *testing.T) {
 		"RLIMIT FW stable bad-limit 600",
 		"RLIMIT FW stable 0 600",
 		"RLIMIT FW stable -1 600",
-		"RLIMIT FW stable 2147483648 600",
+		"RLIMIT FW stable 9223372036854775808 600",
 		"RLIMIT FW stable 2 4294967296",
 		"RLIMIT TB stable 10 bad-refill 600",
 		"RLIMIT TB stable 10 0 600",
-		"RLIMIT TB stable 2147483648 1 600",
-		"RLIMIT TB stable 10 2147483648 600",
+		"RLIMIT TB stable 9223372036854775808 1 600",
+		"RLIMIT TB stable 10 9223372036854775808 600",
 		"RLIMIT TB stable 10 1 4294967296",
 		"INCR " + oversizedKey + " 600",
 	}

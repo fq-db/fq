@@ -434,9 +434,9 @@ func TestElem_IncrByOverflow(t *testing.T) {
 	currTime := database.TxTime(time.Now().Unix())
 	e := NewFqElem(60)
 
-	value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt64, nil)
 	require.NoError(t, err)
-	require.Equal(t, database.ValueType(math.MaxInt32), value)
+	require.Equal(t, database.ValueType(math.MaxInt64), value)
 
 	beforeApplyCalled := false
 	value, err = e.IncrBy(
@@ -451,7 +451,7 @@ func TestElem_IncrByOverflow(t *testing.T) {
 	require.ErrorIs(t, err, database.ErrValueOverflow)
 	require.Equal(t, database.ValueType(0), value)
 	require.False(t, beforeApplyCalled)
-	require.Equal(t, database.ValueType(math.MaxInt32), e.value)
+	require.Equal(t, database.ValueType(math.MaxInt64), e.value)
 	require.Equal(t, database.Tx(1000), e.ver)
 }
 
@@ -459,10 +459,35 @@ func TestElem_IncrOverflow(t *testing.T) {
 	currTime := database.TxTime(time.Now().Unix())
 	e := NewFqElem(60)
 
-	_, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	_, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt64, nil)
 	require.NoError(t, err)
 
 	_, err = e.Incr(database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: currTime}, nil)
 	require.ErrorIs(t, err, database.ErrValueOverflow)
-	require.Equal(t, database.ValueType(math.MaxInt32), e.value)
+	require.Equal(t, database.ValueType(math.MaxInt64), e.value)
+}
+
+func TestElem_IncrByOverflowAtInt64Boundary(t *testing.T) {
+	currTime := database.TxTime(time.Now().Unix())
+	e := NewFqElem(60)
+
+	value, err := e.IncrBy(database.TxContext{Tx: 1000, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(math.MaxInt32), value)
+
+	value, err = e.IncrBy(database.TxContext{Tx: 1001, DumpTx: database.NoTx, CurrTime: currTime}, math.MaxInt32, nil)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(2*int64(math.MaxInt32)), value)
+
+	value, err = e.IncrBy(
+		database.TxContext{Tx: 1002, DumpTx: database.NoTx, CurrTime: currTime},
+		database.ValueType(math.MaxInt64-2*int64(math.MaxInt32)),
+		nil,
+	)
+	require.NoError(t, err)
+	require.Equal(t, database.ValueType(math.MaxInt64), value)
+
+	_, err = e.IncrBy(database.TxContext{Tx: 1003, DumpTx: database.NoTx, CurrTime: currTime}, 1, nil)
+	require.ErrorIs(t, err, database.ErrValueOverflow)
+	require.Equal(t, database.ValueType(math.MaxInt64), e.value)
 }

@@ -48,7 +48,7 @@ func (e *FqElem) IncrBy(
 	if e.lastTxAt < batchStartsAt {
 		value = 0
 	}
-	if int64(value)+int64(delta) > math.MaxInt32 {
+	if delta > math.MaxInt64-value {
 		return 0, database.ErrValueOverflow
 	}
 	if beforeApply != nil {
